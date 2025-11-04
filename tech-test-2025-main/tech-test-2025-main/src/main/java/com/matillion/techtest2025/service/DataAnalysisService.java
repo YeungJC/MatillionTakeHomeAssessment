@@ -57,7 +57,7 @@ public class DataAnalysisService {
             String[] row = lines[i].split(",", -1);
 
             // Validate: each row must have the same number of columns as the header
-             if (row.length != numberOfColumns) {
+                if (row.length != numberOfColumns) {
                 throw new BadRequestException(
                         String.format("Invalid CSV format: row %d has %d columns, expected %d", i,row.length, numberOfColumns));
              }
@@ -80,27 +80,30 @@ public class DataAnalysisService {
         // Create the per-column statistics
         List<ColumnStatisticsEntity> columnStatisticsEntities = new java.util.ArrayList<>();
         for (int col = 0; col < numberOfColumns; col++) {
-            String columnName = headers[col];
-            int nullCount = 0;
+                String columnName = headers[col];
+                int nullCount = 0;
+                java.util.Set<String> uniqueValues = new java.util.HashSet<>();
 
-            // Count null/empty values and track unique non-null values in this column
-            for (String[] row : dataRows) {
-                if (col < row.length) {
-                    String value = row[col];
-                    if (value == null || value.trim().isEmpty()) {
-                        nullCount++;
-                    } 
+                // Count null/empty values and track unique non-null values in this column
+                for (String[] row : dataRows) {
+                        if (col < row.length) {
+                                String value = row[col];
+                                if (value == null || value.trim().isEmpty()) {
+                                        nullCount++;
+                                } else {
+                                        uniqueValues.add(value);
+                                }
+                        }
                 }
-            }
 
-            ColumnStatisticsEntity columnStats = ColumnStatisticsEntity.builder()
-                    .dataAnalysis(dataAnalysisEntity)
-                    .columnName(columnName)
-                    .nullCount(nullCount)
-                    .uniqueCount(0)
-                    .build();
+                ColumnStatisticsEntity columnStats = ColumnStatisticsEntity.builder()
+                        .dataAnalysis(dataAnalysisEntity)
+                        .columnName(columnName)
+                        .nullCount(nullCount)
+                        .uniqueCount(uniqueValues.size())
+                        .build();
 
-            columnStatisticsEntities.add(columnStats);
+                columnStatisticsEntities.add(columnStats);
         }
 
         // Add column statistics to parent entity to maintain bidirectional relationship

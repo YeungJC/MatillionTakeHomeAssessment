@@ -58,6 +58,12 @@ public class ColumnStatisticsEntity {
     @Column(name = "unique_count")
     private int uniqueCount;
 
+
+     
+    // The inferred data type for this column (e.g., STRING, INTEGER, DECIMAL, BOOLEAN).
+    @Column(name = "inferred_type")
+    private String inferredType; 
+
     /**
      * Many-to-one relationship with the parent data analysis.
      * <p>

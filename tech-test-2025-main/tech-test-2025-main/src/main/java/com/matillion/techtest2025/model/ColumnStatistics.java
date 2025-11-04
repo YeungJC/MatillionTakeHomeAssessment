@@ -12,17 +12,20 @@ package com.matillion.techtest2025.model;
  * {
  *   "columnName": "age",
  *   "nullCount": 5,
- *   "uniqueCount": 42
+ *   "uniqueCount": 42,
+ *   "inferredType": "INTEGER"
  * }
  * </pre>
  *
  * @param columnName  the name of the column (from the CSV header)
  * @param nullCount   the number of null/empty values in this column
  * @param uniqueCount the number of unique non-null values in this column (Part 2 requirement)
+ * @param inferredType the inferred data type for this column 
  */
 public record ColumnStatistics(
         String columnName,
         int nullCount,
-        int uniqueCount
+        int uniqueCount,
+        String inferredType
 ) {
 }

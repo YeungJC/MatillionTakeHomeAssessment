@@ -76,7 +76,6 @@ public class DataAnalysisService {
                 .createdAt(creationTimestamp)
                 .build();
 
-        dataAnalysisRepository.save(dataAnalysisEntity);
 
         // Create the per-column statistics
         List<ColumnStatisticsEntity> columnStatisticsEntities = new java.util.ArrayList<>();
@@ -97,11 +96,14 @@ public class DataAnalysisService {
                         }
                 }
 
+                String inferredType = inferColumnType(uniqueValues);
+
                 ColumnStatisticsEntity columnStats = ColumnStatisticsEntity.builder()
                         .dataAnalysis(dataAnalysisEntity)
                         .columnName(columnName)
                         .nullCount(nullCount)
                         .uniqueCount(uniqueValues.size())
+                        .inferredType(inferredType)
                         .build();
 
                 columnStatisticsEntities.add(columnStats);
@@ -123,7 +125,8 @@ public class DataAnalysisService {
                         .map(e -> new ColumnStatistics(
                                 e.getColumnName(),
                                 e.getNullCount(),
-                                e.getUniqueCount()
+                                e.getUniqueCount(),
+                                e.getInferredType()
                         ))
                         .toList(),
                 creationTimestamp
@@ -149,7 +152,8 @@ public class DataAnalysisService {
                                 .map(e -> new ColumnStatistics(
                                         e.getColumnName(),
                                         e.getNullCount(),
-                                        e.getUniqueCount()
+                                        e.getUniqueCount(),
+                                        e.getInferredType()
                                 ))
                                 .toList(),
                         entity.getCreatedAt()
@@ -168,6 +172,43 @@ public class DataAnalysisService {
 
                 dataAnalysisRepository.delete(entity);
         }
+
+            /**
+     * Infers the data type of a column based on its unique values.
+     * Possible types: STRING, INTEGER, DECIMAL, BOOLEAN
+     */
+    private String inferColumnType(java.util.Set<String> values) {
+        if (values.isEmpty()) return "STRING";
+
+        boolean allIntegers = true;
+        boolean allDecimals = true;
+        boolean allBooleans = true;
+
+        for (String v : values) {
+            String value = v.trim();
+
+            if (!(value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false"))) {
+                allBooleans = false;
+            }
+
+            if (!value.matches("-?\\d+")) {
+                allIntegers = false;
+            }
+
+            if (!value.matches("-?\\d*\\.\\d+")) {
+                allDecimals = false;
+            }
+
+            if (!allBooleans && !allIntegers && !allDecimals) {
+                break;
+            }
+        }
+
+        if (allBooleans) return "BOOLEAN";
+        if (allIntegers) return "INTEGER";
+        if (allDecimals) return "DECIMAL";
+        return "STRING";
+    }
 
 
 }

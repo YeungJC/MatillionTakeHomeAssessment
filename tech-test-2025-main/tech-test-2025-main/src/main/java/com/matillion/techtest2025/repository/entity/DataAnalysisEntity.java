@@ -84,7 +84,7 @@ public class DataAnalysisEntity {
      * {@code orphanRemoval = true} ensures that if a column statistic is removed from this list,
      * it will be deleted from the database.
      */
-    @OneToMany(mappedBy = "dataAnalysis", cascade = ALL, orphanRemoval = true, fetch = EAGER)
+    @OneToMany(mappedBy = "dataAnalysis", cascade = CascadeType.ALL, orphanRemoval = true, fetch = EAGER)
     @Builder.Default
     private List<ColumnStatisticsEntity> columnStatistics = new ArrayList<>();
 }

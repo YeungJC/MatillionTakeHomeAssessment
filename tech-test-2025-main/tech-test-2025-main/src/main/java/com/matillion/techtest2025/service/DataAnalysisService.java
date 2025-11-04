@@ -37,11 +37,18 @@ public class DataAnalysisService {
      * @return analysis results
      */
     public DataAnalysisResponse analyzeCsvData(String data) {
-        // Analysis logic will be implemented here
-        int numberOfRows = 0;
-        int numberOfColumns = 0;
-        long totalCharacters = 0L;
+        // Parse CSV data
+        String[] lines = data.split("\n");
 
+        // Extract header (column names)
+        String[] headers = lines[0].split(",", -1);
+        int numberOfColumns = headers.length;
+
+        // Count data rows (excluding header)
+        int numberOfRows = lines.length - 1;
+
+        // Calculate total characters
+        long totalCharacters = data.length();
         // Create and persist the entity
         OffsetDateTime creationTimestamp = OffsetDateTime.now();
 

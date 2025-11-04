@@ -2,6 +2,7 @@ package com.matillion.techtest2025.service;
 
 import com.matillion.techtest2025.controller.response.DataAnalysisResponse;
 import com.matillion.techtest2025.exception.BadRequestException;
+import com.matillion.techtest2025.exception.NotFoundException;
 import com.matillion.techtest2025.model.ColumnStatistics;
 import com.matillion.techtest2025.repository.ColumnStatisticsRepository;
 import com.matillion.techtest2025.repository.DataAnalysisRepository;
@@ -128,5 +129,35 @@ public class DataAnalysisService {
                 creationTimestamp
         );
     }
+        /**
+         * Retrieves a previously analyzed CSV by its ID.
+         *
+         * @param id the ID of the analysis to retrieve
+         * @return analysis results
+         * @throws NotFoundException if no analysis exists with the given ID
+         */
+        public DataAnalysisResponse getAnalysisById(Long id) {
+                DataAnalysisEntity entity = dataAnalysisRepository.findById(id)
+                        .orElseThrow(() -> new NotFoundException("Analysis not found with id: " + id));
+
+                return new DataAnalysisResponse(
+                        entity.getNumberOfRows(),
+                        entity.getNumberOfColumns(),
+                        entity.getTotalCharacters(),
+                        entity.getColumnStatistics()
+                                .stream()
+                                .map(e -> new ColumnStatistics(
+                                        e.getColumnName(),
+                                        e.getNullCount(),
+                                        e.getUniqueCount()
+                                ))
+                                .toList(),
+                        entity.getCreatedAt()
+                );
+        }
+
+
 
 }
+
+

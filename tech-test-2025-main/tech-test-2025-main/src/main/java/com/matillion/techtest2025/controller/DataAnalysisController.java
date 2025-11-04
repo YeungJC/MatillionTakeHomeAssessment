@@ -64,7 +64,7 @@ public class DataAnalysisController {
     @GetMapping("/{id}")
     public DataAnalysisResponse getAnalysisById(@PathVariable Long id) {
         // To be implemented in part 2
-        return null;
+        return dataAnalysisService.getAnalysisById(id);
     }
 
     /**

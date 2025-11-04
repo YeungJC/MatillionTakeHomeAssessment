@@ -35,6 +35,11 @@ public class DataAnalysisController {
      */
     @PostMapping("/ingestCsv")
     public DataAnalysisResponse ingestAndAnalyzeCsv(@RequestBody String data) {
+        //Validate: reject empty input
+        if (data == null || data.trim().isEmpty()){
+            throw new BadRequestException("CSV data cannot be empty");
+        }
+
         // Simple validation: reject data containing "Sonny Hayes"
         // (fictional F1 driver from the recent F1 movie)
         if (data.contains("Sonny Hayes")) {

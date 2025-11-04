@@ -81,5 +81,6 @@ public class DataAnalysisController {
     @ResponseStatus(NO_CONTENT)
     public void deleteAnalysisById(@PathVariable Long id) {
         // To be implemented in part 2
+        dataAnalysisService.deleteAnalysisById(id);
     }
 }

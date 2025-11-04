@@ -156,6 +156,18 @@ public class DataAnalysisService {
                 );
         }
 
+        /**
+         * Deletes an analysis by its ID.
+         *
+         * @param id the ID of the analysis to delete
+         * @throws NotFoundException if no analysis exists with the given ID
+         */
+        public void deleteAnalysisById(Long id) {
+                DataAnalysisEntity entity = dataAnalysisRepository.findById(id)
+                        .orElseThrow(() -> new NotFoundException("Analysis not found with id: " + id));
+
+                dataAnalysisRepository.delete(entity);
+        }
 
 
 }

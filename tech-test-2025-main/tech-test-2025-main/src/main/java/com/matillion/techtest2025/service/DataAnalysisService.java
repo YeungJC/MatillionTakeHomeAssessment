@@ -1,6 +1,7 @@
 package com.matillion.techtest2025.service;
 
 import com.matillion.techtest2025.controller.response.DataAnalysisResponse;
+import com.matillion.techtest2025.exception.BadRequestException;
 import com.matillion.techtest2025.model.ColumnStatistics;
 import com.matillion.techtest2025.repository.ColumnStatisticsRepository;
 import com.matillion.techtest2025.repository.DataAnalysisRepository;
@@ -53,7 +54,14 @@ public class DataAnalysisService {
         String[][] dataRows = new String[numberOfRows][];
         for (int i = 1; i < lines.length; i++) {
            
-            dataRows[i - 1] = lines[i].split(",", -1);
+            String[] row = lines[i].split(",", -1);
+
+            // Validate: each row must have the same number of columns as the header
+             if (row.length != numberOfColumns) {
+                throw new BadRequestException(
+                        String.format("Invalid CSV format: row %d has %d columns, expected %d", i,row.length, numberOfColumns));
+             }
+             dataRows[i - 1] = row;
         }
 
         // Create and persist the entity

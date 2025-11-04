@@ -49,6 +49,13 @@ public class DataAnalysisService {
 
         // Calculate total characters
         long totalCharacters = data.length();
+
+        String[][] dataRows = new String[numberOfRows][];
+        for (int i = 1; i < lines.length; i++) {
+           
+            dataRows[i - 1] = lines[i].split(",", -1);
+        }
+
         // Create and persist the entity
         OffsetDateTime creationTimestamp = OffsetDateTime.now();
 
@@ -63,14 +70,36 @@ public class DataAnalysisService {
         dataAnalysisRepository.save(dataAnalysisEntity);
 
         // Create the per-column statistics
-        List<ColumnStatisticsEntity> columnStatisticsEntities = List.of(ColumnStatisticsEntity.builder()
-                .dataAnalysis(dataAnalysisEntity)
-                .columnName("example")
-                .nullCount(0)
-                .uniqueCount(0)  // Part 2: Calculate unique non-null values per column
-                .build());
+        List<ColumnStatisticsEntity> columnStatisticsEntities = new java.util.ArrayList<>();
+        for (int col = 0; col < numberOfColumns; col++) {
+            String columnName = headers[col];
+            int nullCount = 0;
 
-        columnStatisticsRepository.saveAll(columnStatisticsEntities);
+            // Count null/empty values and track unique non-null values in this column
+            for (String[] row : dataRows) {
+                if (col < row.length) {
+                    String value = row[col];
+                    if (value == null || value.trim().isEmpty()) {
+                        nullCount++;
+                    } 
+                }
+            }
+
+            ColumnStatisticsEntity columnStats = ColumnStatisticsEntity.builder()
+                    .dataAnalysis(dataAnalysisEntity)
+                    .columnName(columnName)
+                    .nullCount(nullCount)
+                    .uniqueCount(0)
+                    .build();
+
+            columnStatisticsEntities.add(columnStats);
+        }
+
+        // Add column statistics to parent entity to maintain bidirectional relationship
+        dataAnalysisEntity.getColumnStatistics().addAll(columnStatisticsEntities);
+
+        //Save parent entity (cascade will save children)
+        dataAnalysisRepository.save(dataAnalysisEntity);
 
         // Return the analysis values
         return new DataAnalysisResponse(

@@ -59,10 +59,38 @@ public class ColumnStatisticsEntity {
     private int uniqueCount;
 
 
-     
+
     // The inferred data type for this column (e.g., STRING, INTEGER, DECIMAL, BOOLEAN).
     @Column(name = "inferred_type")
-    private String inferredType; 
+    private String inferredType;
+
+    /**
+     * The mean (average) value for numerical columns.
+     * <p>
+     * Null for non-numerical columns (STRING, BOOLEAN).
+     * Calculated only for INTEGER and DECIMAL types.
+     */
+    @Column(name = "mean")
+    private Double mean;
+
+    /**
+     * The median (middle value) for numerical columns.
+     * <p>
+     * Null for non-numerical columns (STRING, BOOLEAN).
+     * Calculated only for INTEGER and DECIMAL types.
+     */
+    @Column(name = "median")
+    private Double median;
+
+    /**
+     * The standard deviation for numerical columns.
+     * <p>
+     * Measures the amount of variation or dispersion in the data.
+     * Null for non-numerical columns (STRING, BOOLEAN).
+     * Calculated only for INTEGER and DECIMAL types.
+     */
+    @Column(name = "standard_deviation")
+    private Double standardDeviation; 
 
     /**
      * Many-to-one relationship with the parent data analysis.

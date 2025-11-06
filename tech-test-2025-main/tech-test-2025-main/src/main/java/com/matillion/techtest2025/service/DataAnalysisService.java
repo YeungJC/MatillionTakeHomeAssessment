@@ -102,6 +102,7 @@ public class DataAnalysisService {
                 String columnName = headers[col];
                 int nullCount = 0;
                 java.util.Set<String> uniqueValues = new java.util.HashSet<>();
+                java.util.List<Double> numericValues = new java.util.ArrayList<>();
 
                 // Count null/empty values and track unique non-null values in this column
                 for (String[] row : dataRows) {
@@ -117,12 +118,43 @@ public class DataAnalysisService {
 
                 String inferredType = inferColumnType(uniqueValues);
 
+                // Calculate statistical measures for numerical columns
+                Double mean = null;
+                Double median = null;
+                Double standardDeviation = null;
+
+                if ("INTEGER".equals(inferredType) || "DECIMAL".equals(inferredType)) {
+                        // Collect numeric values from the column
+                        for (String[] row : dataRows) {
+                                if (col < row.length) {
+                                        String value = row[col];
+                                        if (value != null && !value.trim().isEmpty()) {
+                                                try {
+                                                        numericValues.add(Double.parseDouble(value.trim()));
+                                                } catch (NumberFormatException e) {
+                                                        // Skip non-numeric values
+                                                }
+                                        }
+                                }
+                        }
+
+                        // Calculate statistics if we have numeric values
+                        if (!numericValues.isEmpty()) {
+                                mean = calculateMean(numericValues);
+                                median = calculateMedian(numericValues);
+                                standardDeviation = calculateStandardDeviation(numericValues, mean);
+                        }
+                }
+
                 ColumnStatisticsEntity columnStats = ColumnStatisticsEntity.builder()
                         .dataAnalysis(dataAnalysisEntity)
                         .columnName(columnName)
                         .nullCount(nullCount)
                         .uniqueCount(uniqueValues.size())
                         .inferredType(inferredType)
+                        .mean(mean)
+                        .median(median)
+                        .standardDeviation(standardDeviation)
                         .build();
 
                 columnStatisticsEntities.add(columnStats);
@@ -149,7 +181,10 @@ public class DataAnalysisService {
                                 e.getColumnName(),
                                 e.getNullCount(),
                                 e.getUniqueCount(),
-                                e.getInferredType()
+                                e.getInferredType(),
+                                e.getMean(),
+                                e.getMedian(),
+                                e.getStandardDeviation()
                         ))
                         .toList(),
                 creationTimestamp
@@ -180,7 +215,10 @@ public class DataAnalysisService {
                                         e.getColumnName(),
                                         e.getNullCount(),
                                         e.getUniqueCount(),
-                                        e.getInferredType()
+                                        e.getInferredType(),
+                                        e.getMean(),
+                                        e.getMedian(),
+                                        e.getStandardDeviation()
                                 ))
                                 .toList(),
                         entity.getCreatedAt()
@@ -222,7 +260,10 @@ public class DataAnalysisService {
                                                 e.getColumnName(),
                                                 e.getNullCount(),
                                                 e.getUniqueCount(),
-                                                e.getInferredType()
+                                                e.getInferredType(),
+                                                e.getMean(),
+                                                e.getMedian(),
+                                                e.getStandardDeviation()
                                         ))
                                         .toList(),
                                 entity.getCreatedAt()
@@ -384,6 +425,71 @@ public class DataAnalysisService {
         }
 
         return markdown.toString();
+    }
+
+    /**
+     * Calculates the mean (average) of a list of numeric values.
+     *
+     * @param values the list of numeric values
+     * @return the mean value
+     */
+    private Double calculateMean(List<Double> values) {
+        if (values.isEmpty()) {
+            return null;
+        }
+        double sum = 0.0;
+        for (Double value : values) {
+            sum += value;
+        }
+        return sum / values.size();
+    }
+
+    /**
+     * Calculates the median (middle value) of a list of numeric values.
+     *
+     * @param values the list of numeric values (will be sorted)
+     * @return the median value
+     */
+    private Double calculateMedian(List<Double> values) {
+        if (values.isEmpty()) {
+            return null;
+        }
+
+        // Sort the values
+        List<Double> sorted = new java.util.ArrayList<>(values);
+        java.util.Collections.sort(sorted);
+
+        int size = sorted.size();
+        if (size % 2 == 0) {
+            // Even number of elements - average of middle two
+            return (sorted.get(size / 2 - 1) + sorted.get(size / 2)) / 2.0;
+        } else {
+            // Odd number of elements - middle element
+            return sorted.get(size / 2);
+        }
+    }
+
+    /**
+     * Calculates the standard deviation of a list of numeric values.
+     * Uses the sample standard deviation formula (n-1 denominator).
+     *
+     * @param values the list of numeric values
+     * @param mean the mean of the values
+     * @return the standard deviation
+     */
+    private Double calculateStandardDeviation(List<Double> values, Double mean) {
+        if (values.isEmpty() || mean == null || values.size() == 1) {
+            return null;
+        }
+
+        double sumSquaredDifferences = 0.0;
+        for (Double value : values) {
+            double difference = value - mean;
+            sumSquaredDifferences += difference * difference;
+        }
+
+        // Using sample standard deviation (n-1)
+        return Math.sqrt(sumSquaredDifferences / (values.size() - 1));
     }
 
 }

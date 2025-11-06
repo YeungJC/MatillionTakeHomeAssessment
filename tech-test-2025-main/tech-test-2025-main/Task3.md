@@ -31,13 +31,14 @@ When uploading a CSV, users can include a custom `name` field to identify the da
 ## 3. New GET Endpoint for Listing Analyses
 
 ### What problem does it solve?
-Previously, users had no simple method to view all stored analyses without already knowing their IDs or names.
+Previously, viewing multiple analyses was tedious and time-consuming. Users had to retrieve each analysis individually by ID or name, making it difficult to get an overview of everything stored in the system.
 
 ### How does it work?
-A new endpoint, `GET /api/analysis`, lists all stored analyses. Each entry includes both the **ID** and **name**, allowing users to browse and locate available analyses before retrieving or deleting a specific one.
+A new endpoint, `GET /api/analysis`, lists all stored analyses in a single response allowing users to easily browse and identify available analyses.
 
 ### How would someone use it?
-Users can query this endpoint to see all analyses currently stored in the system and identify which ones to view or remove.
+Users can query this endpoint to quickly see all analyses in the system, making it easier to decide which ones to view in detail or delete.
+
 
 ---
 

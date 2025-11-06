@@ -86,4 +86,19 @@ public class DataAnalysisController {
         // To be implemented in part 2
         dataAnalysisService.deleteAnalysisById(id);
     }
+
+        
+
+    /**
+     * Lists all analyses with full details.
+     * <p>
+     * <b>Part 3:</b> Returns a list of all analyses with complete analysis data including
+     * row count, column count, total characters, column statistics, and creation timestamp.
+     *
+     * @return list of complete analysis results
+     */
+    @GetMapping
+    public java.util.List<DataAnalysisResponse> getAllAnalyses() {
+        return dataAnalysisService.getAllAnalyses();
+    }
 }

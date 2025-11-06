@@ -179,6 +179,35 @@ public class DataAnalysisService {
                 dataAnalysisRepository.delete(entity);
         }
 
+        /**
+         * Retrieves a list of all analyses with full details.
+         *
+         * @return list of all analyses with complete analysis data
+         */
+        public List<DataAnalysisResponse> getAllAnalyses() {
+                return dataAnalysisRepository.findAll()
+                        .stream()
+                        .map(entity -> new DataAnalysisResponse(
+                                entity.getId(),
+                                entity.getName(),
+                                entity.getNumberOfRows(),
+                                entity.getNumberOfColumns(),
+                                entity.getTotalCharacters(),
+                                entity.getColumnStatistics()
+                                        .stream()
+                                        .map(e -> new ColumnStatistics(
+                                                e.getColumnName(),
+                                                e.getNullCount(),
+                                                e.getUniqueCount(),
+                                                e.getInferredType()
+                                        ))
+                                        .toList(),
+                                entity.getCreatedAt()
+                        ))
+                        .toList();
+        }
+
+
             /**
      * Infers the data type of a column based on its unique values.
      * Possible types: STRING, INTEGER, DECIMAL, BOOLEAN

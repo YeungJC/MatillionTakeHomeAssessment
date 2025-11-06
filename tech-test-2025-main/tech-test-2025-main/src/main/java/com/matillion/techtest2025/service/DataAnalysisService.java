@@ -117,6 +117,7 @@ public class DataAnalysisService {
 
         // Return the analysis values
         return new DataAnalysisResponse(
+                dataAnalysisEntity.getId(),
                 numberOfRows,
                 numberOfColumns,
                 totalCharacters,
@@ -144,6 +145,7 @@ public class DataAnalysisService {
                         .orElseThrow(() -> new NotFoundException("Analysis not found with id: " + id));
 
                 return new DataAnalysisResponse(
+                        entity.getId(),
                         entity.getNumberOfRows(),
                         entity.getNumberOfColumns(),
                         entity.getTotalCharacters(),

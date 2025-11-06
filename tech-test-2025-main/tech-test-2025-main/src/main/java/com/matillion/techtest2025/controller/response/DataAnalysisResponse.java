@@ -20,6 +20,7 @@ import java.util.List;
  * automatically serialized to JSON by Spring. For example:
  * <pre>
  * {
+ *   "id": 1,
  *   "numberOfRows": 100,
  *   "numberOfColumns": 5,
  *   "totalCharacters": 2500,
@@ -30,6 +31,7 @@ import java.util.List;
  * }
  * </pre>
  *
+ * @param id               the unique identifier of the analysis
  * @param numberOfRows     the count of data rows in the CSV (excluding header)
  * @param numberOfColumns  the count of columns in the CSV
  * @param totalCharacters  the total character count in the CSV
@@ -37,6 +39,7 @@ import java.util.List;
  * @see ColumnStatistics
  */
 public record DataAnalysisResponse(
+        Long id,
         int numberOfRows,
         int numberOfColumns,
         long totalCharacters,

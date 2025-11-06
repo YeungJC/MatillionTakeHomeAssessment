@@ -22,7 +22,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Part 3: Additional Features Implementation Tests
  * <p>
- * This test suite covers the ID field functionality added to POST and GET responses.
+ * This test suite covers the following extended functionality:
+ * <ul>
+ *   <li>ID field functionality added to POST and GET responses</li>
+ *   <li>Optional name parameter support in POST endpoint</li>
+ * </ul>
  * <p>
  * <b>Prerequisites:</b> Part 1 and Part 2 must be completed before Part 3 can be implemented.
  */
@@ -42,6 +46,148 @@ class Part3Tests {
     @BeforeEach
     void setUp() {
         dataAnalysisRepository.deleteAll();
+    }
+
+    // ==================== NAME PARAMETER TESTS ====================
+
+    /**
+     * Tests that the POST endpoint accepts an optional name parameter.
+     * <p>
+     * The CSV contains Formula 1 driver data:
+     * - 3 rows of F1 drivers
+     * - 3 columns: driver, number, team
+     * <p>
+     * Expected behavior:
+     * - POST endpoint should accept name as a query parameter
+     * - Response should include the provided name
+     * - Name should be stored in the database
+     */
+    @Test
+    void shouldAcceptNameParameterInPostEndpoint(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+        String analysisName = "F1 Drivers 2024";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", analysisName)
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(response.name()).isEqualTo(analysisName);
+        assertThat(response.id()).isNotNull();
+    }
+
+    /**
+     * Tests that the POST endpoint works without providing a name parameter.
+     * <p>
+     * Expected behavior:
+     * - POST endpoint should work when name is not provided
+     * - Response should have null name
+     * - All other fields should be populated correctly
+     */
+    @Test
+    void shouldWorkWithoutNameParameter(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(response.name()).isNull();
+        assertThat(response.id()).isNotNull();
+        assertThat(response.numberOfRows()).isEqualTo(3);
+        assertThat(response.numberOfColumns()).isEqualTo(3);
+    }
+
+    /**
+     * Tests that names with special characters are handled correctly.
+     * <p>
+     * Expected behavior:
+     * - Names with spaces, numbers, and special characters should be accepted
+     * - Name should be stored and retrieved exactly as provided
+     */
+    @Test
+    void shouldHandleNamesWithSpecialCharacters(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+        String complexName = "Sales Data Q4 2024 - Region A&B";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", complexName)
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(response.name()).isEqualTo(complexName);
+    }
+
+    /**
+     * Tests that the GET endpoint includes the name in the response.
+     * <p>
+     * Expected behavior:
+     * - GET endpoint should return the name that was provided during ingestion
+     * - Name should match exactly what was saved
+     */
+    @Test
+    void shouldReturnNameInGetEndpoint(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+        String analysisName = "Driver Analysis 2024";
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", analysisName)
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        Long analysisId = postResponse.id();
+
+        var getResult = mockMvc.perform(get("/api/analysis/" + analysisId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse getResponse = objectMapper.readValue(
+                getResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(getResponse.name()).isEqualTo(analysisName);
+        assertThat(getResponse.id()).isEqualTo(analysisId);
     }
 
     // ==================== ID FIELD TESTS ====================

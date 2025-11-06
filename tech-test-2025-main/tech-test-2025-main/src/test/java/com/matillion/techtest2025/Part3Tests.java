@@ -22,6 +22,8 @@ import static org.springframework.http.MediaType.TEXT_PLAIN;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 /**
  * Part 3: Additional Features Implementation Tests
@@ -31,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>ID field functionality added to POST and GET responses</li>
  *   <li>Optional name parameter support in POST endpoint</li>
  *   <li>List all analyses endpoint</li>
+ *   <li>Markdown conversion utility for exporting CSV data as GitHub-flavored Markdown tables</li>
  * </ul>
  * <p>
  * <b>Prerequisites:</b> Part 1 and Part 2 must be completed before Part 3 can be implemented.
@@ -462,5 +465,285 @@ class Part3Tests {
         assertThat(unnamedAnalysis.numberOfColumns()).isEqualTo(3);
         assertThat(unnamedAnalysis.totalCharacters()).isPositive();
         assertThat(unnamedAnalysis.columnStatistics()).isNotEmpty();
+    }
+
+    // ==================== MARKDOWN CONVERSION TESTS ====================
+
+    /**
+     * Tests successful conversion of CSV to Markdown table format.
+     * <p>
+     * Expected behavior:
+     * - GET /api/analysis/{id}/markdown should return markdown formatted table
+     * - Response should be properly formatted with header row, separator, and data rows
+     * - HTTP status should be 200 OK
+     */
+    @Test
+    void shouldConvertCsvToMarkdown(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "F1Drivers")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        Long analysisId = postResponse.id();
+
+        var markdownResult = mockMvc.perform(get("/api/analysis/" + analysisId + "/markdown"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String markdown = markdownResult.getResponse().getContentAsString();
+
+        // Verify markdown format
+        assertThat(markdown).isNotEmpty();
+        assertThat(markdown).contains("| driver | number | team |");
+        assertThat(markdown).contains("| --- | --- | --- |");
+        assertThat(markdown).contains("| Max Verstappen | 1 | Red Bull Racing |");
+        assertThat(markdown).contains("| Lewis Hamilton | 44 | Mercedes |");
+        assertThat(markdown).contains("| Charles Leclerc | 16 | Ferrari |");
+    }
+
+    /**
+     * Tests that markdown endpoint returns proper Content-Type header.
+     * <p>
+     * Expected behavior:
+     * - Content-Type header should be "text/markdown"
+     */
+    @Test
+    void shouldReturnMarkdownContentType(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        mockMvc.perform(get("/api/analysis/" + postResponse.id() + "/markdown"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/markdown"));
+    }
+
+    /**
+     * Tests that markdown endpoint returns proper Content-Disposition header with filename.
+     * <p>
+     * Expected behavior:
+     * - Content-Disposition header should be set for file download
+     * - Filename should match the analysis name with .md extension
+     */
+    @Test
+    void shouldReturnContentDispositionHeaderWithName(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+        String analysisName = "TestMarkdown";
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", analysisName)
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        mockMvc.perform(get("/api/analysis/" + postResponse.id() + "/markdown"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                    "form-data; name=\"attachment\"; filename=\"" + analysisName + ".md\""));
+    }
+
+    /**
+     * Tests that markdown endpoint generates filename from ID when name is not provided.
+     * <p>
+     * Expected behavior:
+     * - When analysis has no name, filename should be "analysis-{id}.md"
+     */
+    @Test
+    void shouldGenerateFilenameFromIdWhenNameIsNull(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        Long analysisId = postResponse.id();
+
+        mockMvc.perform(get("/api/analysis/" + analysisId + "/markdown"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                    "form-data; name=\"attachment\"; filename=\"analysis-" + analysisId + ".md\""));
+    }
+
+    /**
+     * Tests markdown conversion with CSV containing null values.
+     * <p>
+     * Expected behavior:
+     * - Null/empty values should be represented as empty cells in markdown
+     * - Markdown table structure should remain intact
+     */
+    @Test
+    void shouldHandleNullValuesInMarkdownConversion(
+            @Value("classpath:test-data/with-nulls.csv")
+            Resource nullsCsv
+    ) throws Exception {
+        String csvData = nullsCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var markdownResult = mockMvc.perform(get("/api/analysis/" + postResponse.id() + "/markdown"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String markdown = markdownResult.getResponse().getContentAsString();
+
+        // Verify markdown is generated even with null values
+        assertThat(markdown).isNotEmpty();
+        assertThat(markdown).contains("| --- |"); // Separator row should be present
+        assertThat(markdown).contains("|"); // Table structure should be present
+    }
+
+    /**
+     * Tests that markdown endpoint returns 404 for non-existent analysis.
+     * <p>
+     * Expected behavior:
+     * - GET /api/analysis/{invalid-id}/markdown should return 404
+     * - Error response should indicate analysis not found
+     */
+    @Test
+    void shouldReturn404ForNonExistentAnalysisInMarkdown() throws Exception {
+        Long nonExistentId = 99999L;
+
+        mockMvc.perform(get("/api/analysis/" + nonExistentId + "/markdown"))
+                .andExpect(status().isNotFound());
+    }
+
+    /**
+     * Tests markdown conversion with single row CSV.
+     * <p>
+     * Expected behavior:
+     * - Should generate markdown table with header and one data row
+     * - Table structure should be valid
+     */
+    @Test
+    void shouldConvertSingleRowCsvToMarkdown(
+            @Value("classpath:test-data/single-row.csv")
+            Resource singleRowCsv
+    ) throws Exception {
+        String csvData = singleRowCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var markdownResult = mockMvc.perform(get("/api/analysis/" + postResponse.id() + "/markdown"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String markdown = markdownResult.getResponse().getContentAsString();
+
+        // Verify markdown has header, separator, and exactly one data row
+        assertThat(markdown).isNotEmpty();
+        String[] lines = markdown.split("\n");
+        assertThat(lines.length).isEqualTo(3); // header + separator + 1 data row
+        assertThat(lines[1]).contains("---"); // Separator row
+    }
+
+    /**
+     * Tests that markdown table format is correct for different CSV structures.
+     * <p>
+     * Expected behavior:
+     * - Each column should have proper markdown table cell delimiters
+     * - Separator row should have correct number of --- columns
+     * - All data should be properly aligned in cells
+     */
+    @Test
+    void shouldGenerateProperMarkdownTableStructure(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var markdownResult = mockMvc.perform(get("/api/analysis/" + postResponse.id() + "/markdown"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String markdown = markdownResult.getResponse().getContentAsString();
+        String[] lines = markdown.split("\n");
+
+        // Verify header row starts and ends with pipe
+        assertThat(lines[0]).startsWith("|");
+        assertThat(lines[0]).endsWith("|");
+
+        // Verify separator row has correct number of columns (3 columns = 3 separators)
+        long separatorCount = lines[1].chars().filter(ch -> ch == '|').count();
+        assertThat(separatorCount).isEqualTo(4); // 3 columns means 4 pipes (start + 3 delimiters)
+
+        // Verify all data rows have same structure
+        for (int i = 2; i < lines.length; i++) {
+            if (!lines[i].trim().isEmpty()) {
+                assertThat(lines[i]).startsWith("|");
+                assertThat(lines[i]).endsWith("|");
+            }
+        }
     }
 }

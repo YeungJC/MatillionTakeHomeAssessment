@@ -245,6 +245,61 @@ public class DataAnalysisService {
         return "STRING";
     }
 
+     /**
+     * Converts CSV data to a GitHub-flavored Markdown table.
+     * <p>
+     * Takes the original CSV data and transforms it into a clean, formatted
+     * Markdown table suitable for documentation, READMEs, or other Markdown-compatible platforms.
+     *
+     * @param id the ID of the analysis to convert
+     * @return the CSV data as a Markdown table string
+     * @throws NotFoundException if no analysis exists with the given ID
+     */
+    public String convertToMarkdown(Long id) {
+        DataAnalysisEntity entity = dataAnalysisRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Analysis not found with id: " + id));
+
+        String csvData = entity.getOriginalData();
+        if (csvData == null || csvData.trim().isEmpty()) {
+            return "";
+        }
+
+        // Parse CSV into rows
+        String[] lines = csvData.split("\n");
+        if (lines.length == 0) {
+            return "";
+        }
+
+        StringBuilder markdown = new StringBuilder();
+
+        // Process header row
+        String[] headers = lines[0].split(",", -1);
+        markdown.append("|");
+        for (String header : headers) {
+            markdown.append(" ").append(header.trim()).append(" |");
+        }
+        markdown.append("\n");
+
+        // Add separator row
+        markdown.append("|");
+        for (int i = 0; i < headers.length; i++) {
+            markdown.append(" --- |");
+        }
+        markdown.append("\n");
+
+        // Process data rows
+        for (int i = 1; i < lines.length; i++) {
+            String[] values = lines[i].split(",", -1);
+            markdown.append("|");
+            for (String value : values) {
+                markdown.append(" ").append(value.trim()).append(" |");
+            }
+            markdown.append("\n");
+        }
+
+        return markdown.toString();
+    }
+
 
 }
 

@@ -4,6 +4,9 @@ import com.matillion.techtest2025.controller.response.DataAnalysisResponse;
 import com.matillion.techtest2025.exception.BadRequestException;
 import com.matillion.techtest2025.service.DataAnalysisService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import static org.springframework.http.HttpStatus.NO_CONTENT;
@@ -100,5 +103,37 @@ public class DataAnalysisController {
     @GetMapping
     public java.util.List<DataAnalysisResponse> getAllAnalyses() {
         return dataAnalysisService.getAllAnalyses();
+    }
+
+    /**
+     * Converts a CSV analysis to a GitHub-flavored Markdown table.
+     * <p>
+     * <b>Part 3:</b> This endpoint retrieves the original CSV data for a given analysis
+     * and converts it into a clean, formatted Markdown table suitable for documentation,
+     * READMEs, or other Markdown-compatible platforms.
+     * <p>
+     * The response is returned with proper headers to download as a .md file.
+     *
+     * @param id the ID of the analysis to convert
+     * @return ResponseEntity with the CSV data formatted as a Markdown table and proper download headers
+     * @throws com.matillion.techtest2025.exception.NotFoundException if no analysis exists with the given ID (returns HTTP 404)
+     */
+    @GetMapping("/{id}/markdown")
+    public ResponseEntity<String> convertToMarkdown(@PathVariable Long id) {
+        String markdown = dataAnalysisService.convertToMarkdown(id);
+
+        // Get analysis name for filename
+        var analysis = dataAnalysisService.getAnalysisById(id);
+        String filename = analysis.name() != null && !analysis.name().isEmpty()
+            ? analysis.name() + ".md"
+            : "analysis-" + id + ".md";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(new MediaType("text", "markdown"));
+        headers.setContentDispositionFormData("attachment", filename);
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(markdown);
     }
 }

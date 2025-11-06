@@ -35,10 +35,11 @@ public class DataAnalysisService {
      * <b>Note:</b> Current implementation is incomplete. Part 1 of the tech test
      * requires implementing the CSV parsing and analysis logic.
      *
+     * @param name the user-provided name for this analysis
      * @param data raw CSV data (rows separated by newlines, columns by commas)
      * @return analysis results
      */
-    public DataAnalysisResponse analyzeCsvData(String data) {
+    public DataAnalysisResponse analyzeCsvData(String name, String data) {
         // Parse CSV data
         String[] lines = data.split("\n");
 
@@ -69,6 +70,7 @@ public class DataAnalysisService {
         OffsetDateTime creationTimestamp = OffsetDateTime.now();
 
         DataAnalysisEntity dataAnalysisEntity = DataAnalysisEntity.builder()
+                .name(name)
                 .originalData(data)
                 .numberOfRows(numberOfRows)
                 .numberOfColumns(numberOfColumns)
@@ -118,6 +120,7 @@ public class DataAnalysisService {
         // Return the analysis values
         return new DataAnalysisResponse(
                 dataAnalysisEntity.getId(),
+                dataAnalysisEntity.getName(),
                 numberOfRows,
                 numberOfColumns,
                 totalCharacters,
@@ -146,6 +149,7 @@ public class DataAnalysisService {
 
                 return new DataAnalysisResponse(
                         entity.getId(),
+                        entity.getName(),
                         entity.getNumberOfRows(),
                         entity.getNumberOfColumns(),
                         entity.getTotalCharacters(),

@@ -21,6 +21,7 @@ import java.util.List;
  * <pre>
  * {
  *   "id": 1,
+ *   "name:" "First",
  *   "numberOfRows": 100,
  *   "numberOfColumns": 5,
  *   "totalCharacters": 2500,
@@ -32,6 +33,7 @@ import java.util.List;
  * </pre>
  *
  * @param id               the unique identifier of the analysis
+ * @param name             the user-provided name for this analysis
  * @param numberOfRows     the count of data rows in the CSV (excluding header)
  * @param numberOfColumns  the count of columns in the CSV
  * @param totalCharacters  the total character count in the CSV
@@ -40,6 +42,7 @@ import java.util.List;
  */
 public record DataAnalysisResponse(
         Long id,
+        String name,
         int numberOfRows,
         int numberOfColumns,
         long totalCharacters,

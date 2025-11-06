@@ -42,6 +42,12 @@ public class DataAnalysisEntity {
     private Long id;
 
     /**
+     *  Name/label for this analysis (provided by user).
+     */
+    @Column(name = "name")
+    private String name;
+
+    /**
      * Original CSV data. {@code @Lob} allows storing large text.
      */
     @Lob

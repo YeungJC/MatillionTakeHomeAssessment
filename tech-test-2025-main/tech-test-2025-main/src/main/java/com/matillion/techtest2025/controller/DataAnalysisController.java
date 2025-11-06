@@ -29,12 +29,15 @@ public class DataAnalysisController {
      * Validates the input data (rejects data containing "Sonny Hayes"), performs analysis,
      * persists the results to the database, and returns statistics about the CSV.
      *
+     * @param name optional user-provided name for this analysis
      * @param data the raw CSV data as a string
-     * @return analysis results including row count, column count, total characters, and column statistics
+     * @return analysis results including id, name row count, column count, total characters, and column statistics
      * @throws BadRequestException if validation fails
      */
     @PostMapping("/ingestCsv")
-    public DataAnalysisResponse ingestAndAnalyzeCsv(@RequestBody String data) {
+    public DataAnalysisResponse ingestAndAnalyzeCsv(
+        @RequestParam(required = false) String name,
+        @RequestBody String data) {
         //Validate: reject empty input
         if (data == null || data.trim().isEmpty()){
             throw new BadRequestException("CSV data cannot be empty");
@@ -46,7 +49,7 @@ public class DataAnalysisController {
             throw new BadRequestException("CSV data containing 'Sonny Hayes' is not allowed");
         }
 
-        return dataAnalysisService.analyzeCsvData(data);
+        return dataAnalysisService.analyzeCsvData(name,data);
     }
 
     // Part 2 endpoints

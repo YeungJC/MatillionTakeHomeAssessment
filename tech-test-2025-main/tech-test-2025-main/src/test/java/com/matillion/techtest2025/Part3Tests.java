@@ -1,8 +1,10 @@
 package com.matillion.techtest2025;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.matillion.techtest2025.controller.response.DataAnalysisResponse;
 import com.matillion.techtest2025.repository.DataAnalysisRepository;
+import com.matillion.techtest2025.service.DataAnalysisService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +13,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.Resource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <ul>
  *   <li>ID field functionality added to POST and GET responses</li>
  *   <li>Optional name parameter support in POST endpoint</li>
+ *   <li>List all analyses endpoint</li>
  * </ul>
  * <p>
  * <b>Prerequisites:</b> Part 1 and Part 2 must be completed before Part 3 can be implemented.
@@ -300,5 +305,162 @@ class Part3Tests {
         );
 
         assertThat(getResponse.id()).isEqualTo(analysisId);
+    }
+
+    // ==================== LIST ALL ANALYSES TESTS ====================
+
+    /**
+     * Tests the GET /api/analysis endpoint that lists all analyses.
+     * <p>
+     * Expected behavior:
+     * - GET /api/analysis should return a list of all analyses
+     * - Each item should contain full analysis details
+     * - Empty database should return empty list
+     */
+    @Test
+    void shouldListAllAnalyses(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        // Initially, list should be empty
+        var emptyResult = mockMvc.perform(get("/api/analysis"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<DataAnalysisResponse> emptyList = objectMapper.readValue(
+                emptyResult.getResponse().getContentAsString(),
+                new TypeReference<List<DataAnalysisResponse>>() {}
+        );
+
+        assertThat(emptyList).isEmpty();
+
+        // Add three analyses
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Analysis A")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Analysis B")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Analysis C")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        // Now list should contain three analyses
+        var listResult = mockMvc.perform(get("/api/analysis"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<DataAnalysisResponse> analyses = objectMapper.readValue(
+                listResult.getResponse().getContentAsString(),
+                new TypeReference<List<DataAnalysisResponse>>() {}
+        );
+
+        assertThat(analyses).hasSize(3);
+        assertThat(analyses)
+                .extracting(DataAnalysisResponse::name)
+                .containsExactlyInAnyOrder("Analysis A", "Analysis B", "Analysis C");
+    }
+
+    /**
+     * Tests that list endpoint returns full analysis details.
+     * <p>
+     * Expected behavior:
+     * - List should contain complete analysis objects
+     * - Each analysis should have all fields populated (id, name, rows, columns, statistics, etc.)
+     * - Full analysis details (rows, columns, statistics) should be included
+     */
+    @Test
+    void shouldReturnFullDetailsInList(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Test Analysis")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        var result = mockMvc.perform(get("/api/analysis"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<DataAnalysisResponse> analyses = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<List<DataAnalysisResponse>>() {}
+        );
+
+        assertThat(analyses).hasSize(1);
+        DataAnalysisResponse analysis = analyses.get(0);
+        assertThat(analysis.id()).isNotNull();
+        assertThat(analysis.name()).isEqualTo("Test Analysis");
+        assertThat(analysis.numberOfRows()).isEqualTo(3);
+        assertThat(analysis.numberOfColumns()).isEqualTo(3);
+        assertThat(analysis.totalCharacters()).isPositive();
+        assertThat(analysis.columnStatistics()).isNotEmpty();
+        assertThat(analysis.createdAt()).isNotNull();
+    }
+
+    /**
+     * Tests that analyses without names are included in the list.
+     * <p>
+     * Expected behavior:
+     * - Analyses without names should still appear in the list
+     * - Name field should be null for analyses without names
+     * - All other fields should be populated correctly
+     */
+    @Test
+    void shouldIncludeAnalysesWithoutNamesInList(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Named Analysis")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        var result = mockMvc.perform(get("/api/analysis"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<DataAnalysisResponse> analyses = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<List<DataAnalysisResponse>>() {}
+        );
+
+        assertThat(analyses).hasSize(2);
+        assertThat(analyses)
+                .anyMatch(a -> a.name() != null && a.name().equals("Named Analysis"))
+                .anyMatch(a -> a.name() == null);
+
+        // Verify that unnamed analysis still has all other fields populated
+        DataAnalysisResponse unnamedAnalysis = analyses.stream()
+                .filter(a -> a.name() == null)
+                .findFirst()
+                .orElseThrow();
+        assertThat(unnamedAnalysis.id()).isNotNull();
+        assertThat(unnamedAnalysis.numberOfRows()).isEqualTo(3);
+        assertThat(unnamedAnalysis.numberOfColumns()).isEqualTo(3);
+        assertThat(unnamedAnalysis.totalCharacters()).isPositive();
+        assertThat(unnamedAnalysis.columnStatistics()).isNotEmpty();
     }
 }

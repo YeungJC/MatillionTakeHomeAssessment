@@ -48,7 +48,7 @@ Users can query this endpoint to quickly see all analyses in the system, making 
 When working with large CSV files in a language model (LLM) context, users often need to estimate the number of tokens the file will consume. This helps with cost estimation and ensures that token limits are not exceeded during processing.
 
 ### How does it work?
-A new utility integrates a token-counting library to calculate how many LLM tokens a CSV file contains. This enables users to plan their model usage and manage context size constraints more effectively.
+A new utility integrates a token-counting library to calculate how many LLM tokens a CSV file and its associated markdown file contains. This enables users to plan their model usage and manage context size constraints more effectively.
 
 ### How would someone use it?
 Once implemented, users will be able to upload a CSV and receive the token count either as part of the analysis results or through a dedicated endpoint.

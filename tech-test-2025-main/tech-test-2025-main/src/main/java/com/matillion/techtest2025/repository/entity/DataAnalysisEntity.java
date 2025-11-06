@@ -73,6 +73,22 @@ public class DataAnalysisEntity {
     private long totalCharacters;
 
     /**
+     * Token count for the CSV data.
+     * Calculated using GPT-4 tokenization (cl100k_base) to help users estimate
+     * API costs and ensure token limits are not exceeded when using CSV data in LLM contexts.
+     */
+    @Column(name = "csv_token_count")
+    private int csvTokenCount;
+
+    /**
+     * Token count for the Markdown-converted version of the CSV.
+     * Calculated using GPT-4 tokenization (cl100k_base) to help users estimate
+     * token usage when using the markdown table format in LLM contexts.
+     */
+    @Column(name = "markdown_token_count")
+    private int markdownTokenCount;
+
+    /**
      * Timestamp of when this analysis was created (immutable after creation).
      */
     @Column(name = "created_at", nullable = false, updatable = false)

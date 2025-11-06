@@ -1,5 +1,9 @@
 package com.matillion.techtest2025.service;
 
+import com.knuddels.jtokkit.Encodings;
+import com.knuddels.jtokkit.api.Encoding;
+import com.knuddels.jtokkit.api.EncodingRegistry;
+import com.knuddels.jtokkit.api.EncodingType;
 import com.matillion.techtest2025.controller.response.DataAnalysisResponse;
 import com.matillion.techtest2025.exception.BadRequestException;
 import com.matillion.techtest2025.exception.NotFoundException;
@@ -25,6 +29,10 @@ public class DataAnalysisService {
 
     private final DataAnalysisRepository dataAnalysisRepository;
     private final ColumnStatisticsRepository columnStatisticsRepository;
+
+    // Token encoding for GPT-4/GPT-3.5-turbo (cl100k_base encoding)
+    private static final EncodingRegistry registry = Encodings.newDefaultEncodingRegistry();
+    private static final Encoding encoding = registry.getEncoding(EncodingType.CL100K_BASE);
 
     /**
      * Analyzes CSV data and returns statistics.
@@ -53,9 +61,16 @@ public class DataAnalysisService {
         // Calculate total characters
         long totalCharacters = data.length();
 
+        // Calculate token count for CSV data
+        int csvTokenCount = countTokens(data);
+
+        // Generate markdown for token counting (before database entity creation)
+        String markdownVersion = convertCsvToMarkdown(data);
+        int markdownTokenCount = countTokens(markdownVersion);
+
         String[][] dataRows = new String[numberOfRows][];
         for (int i = 1; i < lines.length; i++) {
-           
+
             String[] row = lines[i].split(",", -1);
 
             // Validate: each row must have the same number of columns as the header
@@ -75,6 +90,8 @@ public class DataAnalysisService {
                 .numberOfRows(numberOfRows)
                 .numberOfColumns(numberOfColumns)
                 .totalCharacters(totalCharacters)
+                .csvTokenCount(csvTokenCount)
+                .markdownTokenCount(markdownTokenCount)
                 .createdAt(creationTimestamp)
                 .build();
 
@@ -124,6 +141,8 @@ public class DataAnalysisService {
                 numberOfRows,
                 numberOfColumns,
                 totalCharacters,
+                csvTokenCount,
+                markdownTokenCount,
                 columnStatisticsEntities
                         .stream()
                         .map(e -> new ColumnStatistics(
@@ -153,6 +172,8 @@ public class DataAnalysisService {
                         entity.getNumberOfRows(),
                         entity.getNumberOfColumns(),
                         entity.getTotalCharacters(),
+                        entity.getCsvTokenCount(),
+                        entity.getMarkdownTokenCount(),
                         entity.getColumnStatistics()
                                 .stream()
                                 .map(e -> new ColumnStatistics(
@@ -193,6 +214,8 @@ public class DataAnalysisService {
                                 entity.getNumberOfRows(),
                                 entity.getNumberOfColumns(),
                                 entity.getTotalCharacters(),
+                                entity.getCsvTokenCount(),
+                                entity.getMarkdownTokenCount(),
                                 entity.getColumnStatistics()
                                         .stream()
                                         .map(e -> new ColumnStatistics(
@@ -245,7 +268,70 @@ public class DataAnalysisService {
         return "STRING";
     }
 
-     /**
+    /**
+     * Counts the number of tokens in the provided text using GPT-4 tokenization.
+     * <p>
+     * This helps users estimate API costs and ensures token limits are not exceeded
+     * when using the data in LLM contexts.
+     *
+     * @param text the text to count tokens for
+     * @return the number of tokens
+     */
+    private int countTokens(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        return encoding.countTokens(text);
+    }
+
+    /**
+     * Converts CSV string to markdown format for internal use (token counting).
+     * This is a helper method that works with raw CSV strings.
+     *
+     * @param csvData the CSV data as a string
+     * @return markdown formatted table
+     */
+    private String convertCsvToMarkdown(String csvData) {
+        if (csvData == null || csvData.trim().isEmpty()) {
+            return "";
+        }
+
+        String[] lines = csvData.split("\n");
+        if (lines.length == 0) {
+            return "";
+        }
+
+        StringBuilder markdown = new StringBuilder();
+
+        // Process header row
+        String[] headers = lines[0].split(",", -1);
+        markdown.append("|");
+        for (String header : headers) {
+            markdown.append(" ").append(header.trim()).append(" |");
+        }
+        markdown.append("\n");
+
+        // Add separator row
+        markdown.append("|");
+        for (int i = 0; i < headers.length; i++) {
+            markdown.append(" --- |");
+        }
+        markdown.append("\n");
+
+        // Process data rows
+        for (int i = 1; i < lines.length; i++) {
+            String[] values = lines[i].split(",", -1);
+            markdown.append("|");
+            for (String value : values) {
+                markdown.append(" ").append(value.trim()).append(" |");
+            }
+            markdown.append("\n");
+        }
+
+        return markdown.toString();
+    }
+
+    /**
      * Converts CSV data to a GitHub-flavored Markdown table.
      * <p>
      * Takes the original CSV data and transforms it into a clean, formatted
@@ -299,7 +385,6 @@ public class DataAnalysisService {
 
         return markdown.toString();
     }
-
 
 }
 

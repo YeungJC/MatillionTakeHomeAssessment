@@ -25,6 +25,8 @@ import java.util.List;
  *   "numberOfRows": 100,
  *   "numberOfColumns": 5,
  *   "totalCharacters": 2500,
+ *   "csvTokenCount": 450,
+ *    "markdownTokenCount": 520,
  *   "columnStatistics": [
  *     {"columnName": "age", "nullCount": 3},
  *     {"columnName": "name", "nullCount": 0}
@@ -37,6 +39,8 @@ import java.util.List;
  * @param numberOfRows     the count of data rows in the CSV (excluding header)
  * @param numberOfColumns  the count of columns in the CSV
  * @param totalCharacters  the total character count in the CSV
+ * @param csvTokenCount       the estimated token count for the CSV data (GPT-4 tokenization)
+ * * @param markdownTokenCount  the estimated token count for the markdown table format (GPT-4 tokenization)
  * @param columnStatistics a list of statistics for each column
  * @see ColumnStatistics
  */
@@ -46,6 +50,8 @@ public record DataAnalysisResponse(
         int numberOfRows,
         int numberOfColumns,
         long totalCharacters,
+        int csvTokenCount,
+        int markdownTokenCount,
         List<ColumnStatistics> columnStatistics,
         OffsetDateTime createdAt
 ) {

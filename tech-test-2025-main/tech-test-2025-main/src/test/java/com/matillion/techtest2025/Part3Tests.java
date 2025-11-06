@@ -34,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>Optional name parameter support in POST endpoint</li>
  *   <li>List all analyses endpoint</li>
  *   <li>Markdown conversion utility for exporting CSV data as GitHub-flavored Markdown tables</li>
+ *   <li>Token counting utility for estimating LLM context usage (CSV and Markdown formats)</li>
  * </ul>
  * <p>
  * <b>Prerequisites:</b> Part 1 and Part 2 must be completed before Part 3 can be implemented.
@@ -745,5 +746,300 @@ class Part3Tests {
                 assertThat(lines[i]).endsWith("|");
             }
         }
+    }
+
+    // ==================== TOKEN COUNTING TESTS ====================
+
+    /**
+     * Tests that CSV token count is returned in POST response.
+     * <p>
+     * Expected behavior:
+     * - POST endpoint should calculate and return csvTokenCount
+     * - CSV token count should be a positive integer
+     * - Token count should represent the number of tokens in the raw CSV data
+     */
+    @Test
+    void shouldReturnCsvTokenCountInPostResponse(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "TokenTest")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(response.csvTokenCount()).isPositive();
+    }
+
+    /**
+     * Tests that Markdown token count is returned in POST response.
+     * <p>
+     * Expected behavior:
+     * - POST endpoint should calculate and return markdownTokenCount
+     * - Markdown token count should be a positive integer
+     * - Token count should represent the number of tokens in the markdown table format
+     */
+    @Test
+    void shouldReturnMarkdownTokenCountInPostResponse(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "TokenTest")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(response.markdownTokenCount()).isPositive();
+    }
+
+    /**
+     * Tests that markdown token count is typically higher than CSV token count.
+     * <p>
+     * Expected behavior:
+     * - Markdown format includes formatting characters (|, ---, spaces)
+     * - Markdown token count should generally be higher than CSV token count
+     * - This helps users understand the token overhead of using markdown format
+     */
+    @Test
+    void shouldShowMarkdownTokenCountHigherThanCsvTokenCount(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        // Markdown format typically uses more tokens due to formatting
+        assertThat(response.markdownTokenCount()).isGreaterThan(response.csvTokenCount());
+    }
+
+    /**
+     * Tests that token counts are persisted and returned in GET endpoint.
+     * <p>
+     * Expected behavior:
+     * - Token counts calculated during POST should be stored in database
+     * - GET endpoint should return the same token counts
+     * - Values should match exactly between POST and GET
+     */
+    @Test
+    void shouldPersistAndRetrieveTokenCounts(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        Long analysisId = postResponse.id();
+        int expectedCsvTokenCount = postResponse.csvTokenCount();
+        int expectedMarkdownTokenCount = postResponse.markdownTokenCount();
+
+        var getResult = mockMvc.perform(get("/api/analysis/" + analysisId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse getResponse = objectMapper.readValue(
+                getResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(getResponse.csvTokenCount()).isEqualTo(expectedCsvTokenCount);
+        assertThat(getResponse.markdownTokenCount()).isEqualTo(expectedMarkdownTokenCount);
+    }
+
+    /**
+     * Tests that token counts are included in list all analyses endpoint.
+     * <p>
+     * Expected behavior:
+     * - GET /api/analysis should include token counts for all analyses
+     * - Each analysis in the list should have both csvTokenCount and markdownTokenCount
+     * - Values should be consistent with individual GET endpoint
+     */
+    @Test
+    void shouldIncludeTokenCountsInListEndpoint(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Analysis A")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Analysis B")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        var result = mockMvc.perform(get("/api/analysis"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<DataAnalysisResponse> analyses = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<List<DataAnalysisResponse>>() {}
+        );
+
+        assertThat(analyses).hasSize(2);
+        for (DataAnalysisResponse analysis : analyses) {
+            assertThat(analysis.csvTokenCount()).isPositive();
+            assertThat(analysis.markdownTokenCount()).isPositive();
+            assertThat(analysis.markdownTokenCount()).isGreaterThan(analysis.csvTokenCount());
+        }
+    }
+
+    /**
+     * Tests token counting with different CSV sizes.
+     * <p>
+     * Expected behavior:
+     * - Larger CSVs should have higher token counts
+     * - Token counts should scale proportionally with data size
+     */
+    @Test
+    void shouldScaleTokenCountsWithDataSize(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv,
+            @Value("classpath:test-data/large.csv")
+            Resource largeCsv
+    ) throws Exception {
+        String smallCsvData = simpleCsv.getContentAsString(UTF_8);
+        String largeCsvData = largeCsv.getContentAsString(UTF_8);
+
+        var smallResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Small CSV")
+                        .contentType(TEXT_PLAIN)
+                        .content(smallCsvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse smallResponse = objectMapper.readValue(
+                smallResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var largeResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Large CSV")
+                        .contentType(TEXT_PLAIN)
+                        .content(largeCsvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse largeResponse = objectMapper.readValue(
+                largeResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        // Large CSV should have more tokens than small CSV
+        assertThat(largeResponse.csvTokenCount()).isGreaterThan(smallResponse.csvTokenCount());
+        assertThat(largeResponse.markdownTokenCount()).isGreaterThan(smallResponse.markdownTokenCount());
+    }
+
+    /**
+     * Tests that token counts are non-zero for valid CSVs.
+     * <p>
+     * Expected behavior:
+     * - Any valid CSV with data should produce non-zero token counts
+     * - Both CSV and markdown token counts should be greater than zero
+     */
+    @Test
+    void shouldProduceNonZeroTokenCountsForValidCsv(
+            @Value("classpath:test-data/single-row.csv")
+            Resource singleRowCsv
+    ) throws Exception {
+        String csvData = singleRowCsv.getContentAsString(UTF_8);
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        assertThat(response.csvTokenCount()).isGreaterThan(0);
+        assertThat(response.markdownTokenCount()).isGreaterThan(0);
+    }
+
+    /**
+     * Tests that token counts are consistent across multiple uploads of the same CSV.
+     * <p>
+     * Expected behavior:
+     * - Uploading the same CSV multiple times should produce identical token counts
+     * - Token counting should be deterministic
+     */
+    @Test
+    void shouldProduceConsistentTokenCountsForSameCsv(
+            @Value("classpath:test-data/simple.csv")
+            Resource simpleCsv
+    ) throws Exception {
+        String csvData = simpleCsv.getContentAsString(UTF_8);
+
+        var result1 = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response1 = objectMapper.readValue(
+                result1.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var result2 = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response2 = objectMapper.readValue(
+                result2.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        // Token counts should be identical for the same CSV
+        assertThat(response1.csvTokenCount()).isEqualTo(response2.csvTokenCount());
+        assertThat(response1.markdownTokenCount()).isEqualTo(response2.markdownTokenCount());
     }
 }

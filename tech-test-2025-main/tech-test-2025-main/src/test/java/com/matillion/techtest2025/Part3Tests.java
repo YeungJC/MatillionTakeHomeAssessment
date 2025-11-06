@@ -1042,4 +1042,497 @@ class Part3Tests {
         assertThat(response1.csvTokenCount()).isEqualTo(response2.csvTokenCount());
         assertThat(response1.markdownTokenCount()).isEqualTo(response2.markdownTokenCount());
     }
+
+    // ==================== STATISTICAL ANALYSIS TESTS ====================
+
+    /**
+     * Tests that mean, median, and standard deviation are calculated for integer columns.
+     * <p>
+     * Expected behavior:
+     * - Integer columns should have statistical measures calculated
+     * - Mean should be the average of all values
+     * - Median should be the middle value
+     * - Standard deviation should measure data spread
+     */
+    @Test
+    void shouldCalculateStatisticsForIntegerColumns() throws Exception {
+        // CSV with integer column: age = 20, 30, 40
+        String csvData = "name,age\nAlice,20\nBob,30\nCharlie,40";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var ageStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("age"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(ageStats.inferredType()).isEqualTo("INTEGER");
+        assertThat(ageStats.mean()).isEqualTo(30.0);
+        assertThat(ageStats.median()).isEqualTo(30.0);
+        assertThat(ageStats.standardDeviation()).isNotNull();
+        assertThat(ageStats.standardDeviation()).isGreaterThan(0);
+    }
+
+    /**
+     * Tests that mean, median, and standard deviation are calculated for decimal columns.
+     * <p>
+     * Expected behavior:
+     * - Decimal columns should have statistical measures calculated
+     * - Statistics should handle decimal precision correctly
+     */
+    @Test
+    void shouldCalculateStatisticsForDecimalColumns() throws Exception {
+        // CSV with decimal column: price = 10.5, 20.5, 30.5
+        String csvData = "item,price\nA,10.5\nB,20.5\nC,30.5";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var priceStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("price"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(priceStats.inferredType()).isEqualTo("DECIMAL");
+        assertThat(priceStats.mean()).isEqualTo(20.5);
+        assertThat(priceStats.median()).isEqualTo(20.5);
+        assertThat(priceStats.standardDeviation()).isNotNull();
+        assertThat(priceStats.standardDeviation()).isGreaterThan(0);
+    }
+
+    /**
+     * Tests that string columns have null statistical values.
+     * <p>
+     * Expected behavior:
+     * - String columns should not have statistical measures
+     * - Mean, median, and standard deviation should be null
+     */
+    @Test
+    void shouldHaveNullStatisticsForStringColumns() throws Exception {
+        String csvData = "name,city\nAlice,London\nBob,Paris\nCharlie,Berlin";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var nameStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("name"))
+                .findFirst()
+                .orElseThrow();
+
+        var cityStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("city"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(nameStats.inferredType()).isEqualTo("STRING");
+        assertThat(nameStats.mean()).isNull();
+        assertThat(nameStats.median()).isNull();
+        assertThat(nameStats.standardDeviation()).isNull();
+
+        assertThat(cityStats.inferredType()).isEqualTo("STRING");
+        assertThat(cityStats.mean()).isNull();
+        assertThat(cityStats.median()).isNull();
+        assertThat(cityStats.standardDeviation()).isNull();
+    }
+
+    /**
+     * Tests that boolean columns have null statistical values.
+     * <p>
+     * Expected behavior:
+     * - Boolean columns should not have statistical measures
+     * - Mean, median, and standard deviation should be null
+     */
+    @Test
+    void shouldHaveNullStatisticsForBooleanColumns() throws Exception {
+        String csvData = "name,active\nAlice,true\nBob,false\nCharlie,true";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var activeStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("active"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(activeStats.inferredType()).isEqualTo("BOOLEAN");
+        assertThat(activeStats.mean()).isNull();
+        assertThat(activeStats.median()).isNull();
+        assertThat(activeStats.standardDeviation()).isNull();
+    }
+
+    /**
+     * Tests that statistical calculations exclude null values.
+     * <p>
+     * Expected behavior:
+     * - Null/empty values should not be included in statistical calculations
+     * - Statistics should be calculated only on non-null numeric values
+     */
+    @Test
+    void shouldExcludeNullValuesFromStatisticalCalculations() throws Exception {
+        // CSV with nulls: values = 10, [empty], 20, [empty], 30
+        String csvData = "id,value\n1,10\n2,\n3,20\n4,\n5,30";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var valueStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("value"))
+                .findFirst()
+                .orElseThrow();
+
+        // Should calculate statistics on only 3 values: 10, 20, 30
+        assertThat(valueStats.inferredType()).isEqualTo("INTEGER");
+        assertThat(valueStats.nullCount()).isEqualTo(2);
+        assertThat(valueStats.mean()).isEqualTo(20.0); // (10 + 20 + 30) / 3
+        assertThat(valueStats.median()).isEqualTo(20.0);
+        assertThat(valueStats.standardDeviation()).isNotNull();
+    }
+
+    /**
+     * Tests that standard deviation is null for single value columns.
+     * <p>
+     * Expected behavior:
+     * - Columns with only one non-null value should have null standard deviation
+     * - Mean and median should still be calculated
+     */
+    @Test
+    void shouldReturnNullStandardDeviationForSingleValue() throws Exception {
+        String csvData = "name,score\nAlice,100";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var scoreStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("score"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(scoreStats.inferredType()).isEqualTo("INTEGER");
+        assertThat(scoreStats.mean()).isEqualTo(100.0);
+        assertThat(scoreStats.median()).isEqualTo(100.0);
+        assertThat(scoreStats.standardDeviation()).isNull(); // Can't calculate stddev for 1 value
+    }
+
+    /**
+     * Tests correct mean calculation.
+     * <p>
+     * Expected behavior:
+     * - Mean should be the arithmetic average of all values
+     * - Mean = sum of values / count of values
+     */
+    @Test
+    void shouldCalculateMeanCorrectly() throws Exception {
+        // Values: 1, 2, 3, 4, 5 -> mean = 15/5 = 3.0
+        String csvData = "id,value\n1,1\n2,2\n3,3\n4,4\n5,5";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var valueStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("value"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(valueStats.mean()).isEqualTo(3.0);
+    }
+
+    /**
+     * Tests correct median calculation for odd number of values.
+     * <p>
+     * Expected behavior:
+     * - For odd count, median should be the middle value
+     * - Values: 1, 2, 3, 4, 5 -> median = 3
+     */
+    @Test
+    void shouldCalculateMedianForOddNumberOfValues() throws Exception {
+        String csvData = "id,value\n1,1\n2,2\n3,3\n4,4\n5,5";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var valueStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("value"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(valueStats.median()).isEqualTo(3.0);
+    }
+
+    /**
+     * Tests correct median calculation for even number of values.
+     * <p>
+     * Expected behavior:
+     * - For even count, median should be the average of two middle values
+     * - Values: 1, 2, 3, 4 -> median = (2 + 3) / 2 = 2.5
+     */
+    @Test
+    void shouldCalculateMedianForEvenNumberOfValues() throws Exception {
+        String csvData = "id,value\n1,1\n2,2\n3,3\n4,4";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var valueStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("value"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(valueStats.median()).isEqualTo(2.5);
+    }
+
+    /**
+     * Tests that standard deviation measures data spread correctly.
+     * <p>
+     * Expected behavior:
+     * - Standard deviation should be positive for varying data
+     * - Higher variation should result in higher standard deviation
+     */
+    @Test
+    void shouldCalculateStandardDeviationCorrectly() throws Exception {
+        // Values with known standard deviation
+        String csvData = "id,value\n1,10\n2,20\n3,30";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var valueStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("value"))
+                .findFirst()
+                .orElseThrow();
+
+        // For values 10, 20, 30: mean = 20, sample stddev = 10
+        assertThat(valueStats.standardDeviation()).isNotNull();
+        assertThat(valueStats.standardDeviation()).isCloseTo(10.0, org.assertj.core.data.Offset.offset(0.01));
+    }
+
+    /**
+     * Tests that statistics are persisted and retrievable via GET endpoint.
+     * <p>
+     * Expected behavior:
+     * - Statistical measures calculated during POST should be stored in database
+     * - GET endpoint should return the same statistical values
+     */
+    @Test
+    void shouldPersistAndRetrieveStatisticalMeasures() throws Exception {
+        String csvData = "name,age\nAlice,25\nBob,35\nCharlie,45";
+
+        var postResult = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse postResponse = objectMapper.readValue(
+                postResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var postAgeStats = postResponse.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("age"))
+                .findFirst()
+                .orElseThrow();
+
+        Double expectedMean = postAgeStats.mean();
+        Double expectedMedian = postAgeStats.median();
+        Double expectedStdDev = postAgeStats.standardDeviation();
+
+        // Retrieve via GET endpoint
+        var getResult = mockMvc.perform(get("/api/analysis/" + postResponse.id()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse getResponse = objectMapper.readValue(
+                getResult.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        var getAgeStats = getResponse.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("age"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(getAgeStats.mean()).isEqualTo(expectedMean);
+        assertThat(getAgeStats.median()).isEqualTo(expectedMedian);
+        assertThat(getAgeStats.standardDeviation()).isEqualTo(expectedStdDev);
+    }
+
+    /**
+     * Tests that statistics are included in list all analyses endpoint.
+     * <p>
+     * Expected behavior:
+     * - GET /api/analysis should include statistical measures for all analyses
+     * - Each column in each analysis should have complete statistical data
+     */
+    @Test
+    void shouldIncludeStatisticsInListEndpoint() throws Exception {
+        String csvData = "product,price\nA,10.5\nB,20.5\nC,30.5";
+
+        mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .param("name", "Price Analysis")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk());
+
+        var result = mockMvc.perform(get("/api/analysis"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<DataAnalysisResponse> analyses = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<List<DataAnalysisResponse>>() {}
+        );
+
+        assertThat(analyses).hasSize(1);
+
+        var priceStats = analyses.get(0).columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("price"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(priceStats.inferredType()).isEqualTo("DECIMAL");
+        assertThat(priceStats.mean()).isNotNull();
+        assertThat(priceStats.median()).isNotNull();
+        assertThat(priceStats.standardDeviation()).isNotNull();
+    }
+
+    /**
+     * Tests that mixed column types have statistics calculated correctly.
+     * <p>
+     * Expected behavior:
+     * - Numeric columns should have statistics
+     * - Non-numeric columns should have null statistics
+     * - Each column type should be handled independently
+     */
+    @Test
+    void shouldHandleMixedColumnTypesCorrectly() throws Exception {
+        String csvData = "name,age,active,salary\nAlice,25,true,50000.5\nBob,35,false,75000.75\nCharlie,45,true,100000.25";
+
+        var result = mockMvc.perform(post("/api/analysis/ingestCsv")
+                        .contentType(TEXT_PLAIN)
+                        .content(csvData))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        DataAnalysisResponse response = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                DataAnalysisResponse.class
+        );
+
+        // String column - no statistics
+        var nameStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("name"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(nameStats.mean()).isNull();
+        assertThat(nameStats.median()).isNull();
+        assertThat(nameStats.standardDeviation()).isNull();
+
+        // Integer column - has statistics
+        var ageStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("age"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(ageStats.mean()).isNotNull();
+        assertThat(ageStats.median()).isNotNull();
+        assertThat(ageStats.standardDeviation()).isNotNull();
+
+        // Boolean column - no statistics
+        var activeStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("active"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(activeStats.mean()).isNull();
+        assertThat(activeStats.median()).isNull();
+        assertThat(activeStats.standardDeviation()).isNull();
+
+        // Decimal column - has statistics
+        var salaryStats = response.columnStatistics().stream()
+                .filter(cs -> cs.columnName().equals("salary"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(salaryStats.mean()).isNotNull();
+        assertThat(salaryStats.median()).isNotNull();
+        assertThat(salaryStats.standardDeviation()).isNotNull();
+    }
 }
